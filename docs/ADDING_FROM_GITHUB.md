@@ -134,17 +134,28 @@ webView.setWebViewClient(service.buildWebViewClient(null));
 webView.loadUrl("https://your-web-app.example.com");
 ```
 
+With the default configuration, this protects matching `fetch(...)` and `XMLHttpRequest` traffic.
+Matching HTML form submissions and top-level page navigations remain on the normal WebView stack
+unless you explicitly opt into native replay.
+
 ## How To Configure It Correctly
 
 - `addAllowedOriginRule(...)`
   - add only the page origins that you trust to call the bridge
 - `addNativeRequestRule(...)`
   - add only the protected API hosts and path prefixes
+  - do not match HTML page routes unless you have explicitly enabled and validated HTML replay
 - `addSecretHeader(...)`
   - add only headers that must stay out of JavaScript
 - `setAllowRequestsWithoutApproov(true)`
   - keeps the transport fail-open
   - your backend remains responsible for rejecting missing or invalid tokens if required
+- `setProtectSameFrameHtmlFormSubmissions(true)`
+  - optional and disabled by default
+  - only enable for tightly controlled same-frame HTML form flows that you have validated end to end
+- `setInterceptMainFrameNavigations(true)`
+  - optional and disabled by default
+  - only enable if you intentionally want matching top-level page loads to bypass the normal WebView loader
 
 ## Diagnose In Logcat
 
@@ -153,7 +164,7 @@ webView.loadUrl("https://your-web-app.example.com");
 - `ApproovWebViewOkHttp`
   - native replay request/response logs
 
-If a form submit is protected, you should see one of these:
+If you explicitly enable protected HTML form replay or main-frame navigation replay, you should see one of these:
 
 - JS interception logs from the bridge
 - native fallback log like `Intercepting protected main-frame navigation ...`

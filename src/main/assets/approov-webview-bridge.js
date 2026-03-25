@@ -10,6 +10,7 @@
 
   const BRIDGE_NAME = "ApproovNativeBridge";
   const bridgeConfig = window.__approovWebViewConfig || {};
+  const protectSameFrameHtmlFormSubmissions = !!bridgeConfig.protectSameFrameHtmlFormSubmissions;
   const nativeRequestRules = Array.isArray(bridgeConfig.nativeRequestRules)
     ? bridgeConfig.nativeRequestRules.filter(function (rule) {
       return rule && typeof rule.host === "string";
@@ -147,6 +148,14 @@
       && String(candidate.tagName || "").toUpperCase() === "FORM";
   }
 
+  function isSameOriginUrl(url) {
+    try {
+      return new URL(url, window.location.href).origin === window.location.origin;
+    } catch (error) {
+      return false;
+    }
+  }
+
   function canSerializeForm(form) {
     return !Array.prototype.some.call(form.elements || [], function (element) {
       return element
@@ -235,6 +244,14 @@
   }
 
   function evaluateFormRouting(form, submitter) {
+    if (!protectSameFrameHtmlFormSubmissions) {
+      return {
+        reason: "HTML form protection is disabled in ApproovWebViewConfig",
+        shouldRoute: false,
+        url: window.location.href
+      };
+    }
+
     if (!isFormElement(form)) {
       return {
         reason: "event target is not a form element",
@@ -391,6 +408,8 @@
       body: request.body,
       headers: request.headers,
       method: request.method
+    }, {
+      credentialsMode: "include"
     }).then(function (response) {
       return response.text().then(function (text) {
         renderFormResponse(text, response.url || request.url);
@@ -488,15 +507,19 @@
     pending.reject(nativeError);
   }
 
-  async function buildNativePayload(input, init) {
+  async function buildNativePayload(input, init, extra) {
     const request = new Request(input, init || {});
     const method = (request.method || "GET").toUpperCase();
     const body = method === "GET" || method === "HEAD"
       ? null
       : await request.clone().text();
+    const credentialsMode = extra && typeof extra.credentialsMode === "string"
+      ? extra.credentialsMode
+      : (typeof request.credentials === "string" ? request.credentials : "same-origin");
 
     return {
       body: body,
+      credentialsMode: credentialsMode,
       headers: headersToObject(request.headers),
       method: method,
       pageUrl: window.location.href,
@@ -505,8 +528,8 @@
     };
   }
 
-  function performNativeRequest(input, init) {
-    return buildNativePayload(input, init).then(function (payload) {
+  function performNativeRequest(input, init, extra) {
+    return buildNativePayload(input, init, extra).then(function (payload) {
       return new Promise(function (resolve, reject) {
         const nativeBridge = getNativeBridge();
         if (!nativeBridge || typeof nativeBridge.postMessage !== "function") {
@@ -589,22 +612,24 @@
     document.addEventListener("click", handleSubmitterClick, true);
   }
 
-  installFormSupport();
+  if (protectSameFrameHtmlFormSubmissions) {
+    installFormSupport();
 
-  if (OriginalHTMLFormElement && originalFormSubmit) {
-    OriginalHTMLFormElement.prototype.submit = function () {
-      if (!dispatchNativeFormSubmission(this, null, "submit()")) {
-        return originalFormSubmit.call(this);
-      }
-    };
-  }
+    if (OriginalHTMLFormElement && originalFormSubmit) {
+      OriginalHTMLFormElement.prototype.submit = function () {
+        if (!dispatchNativeFormSubmission(this, null, "submit()")) {
+          return originalFormSubmit.call(this);
+        }
+      };
+    }
 
-  if (OriginalHTMLFormElement && originalRequestSubmit) {
-    OriginalHTMLFormElement.prototype.requestSubmit = function (submitter) {
-      if (!dispatchNativeFormSubmission(this, submitter || null, "requestSubmit()")) {
-        return originalRequestSubmit.call(this, submitter);
-      }
-    };
+    if (OriginalHTMLFormElement && originalRequestSubmit) {
+      OriginalHTMLFormElement.prototype.requestSubmit = function (submitter) {
+        if (!dispatchNativeFormSubmission(this, submitter || null, "requestSubmit()")) {
+          return originalRequestSubmit.call(this, submitter);
+        }
+      };
+    }
   }
 
   function NativeXMLHttpRequest() {
@@ -621,6 +646,7 @@
     this.responseURL = "";
     this.status = 0;
     this.statusText = "";
+    this.withCredentials = false;
     this.onreadystatechange = null;
     this.onload = null;
     this.onerror = null;
@@ -686,6 +712,7 @@
     if (!shouldRouteToNative(resolvedUrl)) {
       this._delegate = new OriginalXMLHttpRequest();
       this._delegate.responseType = this.responseType;
+      this._delegate.withCredentials = this.withCredentials;
 
       ["readystatechange", "load", "error", "loadend", "abort", "timeout"].forEach(function (eventName) {
         this._delegate.addEventListener(eventName, function () {
@@ -715,16 +742,28 @@
 
   NativeXMLHttpRequest.prototype.send = function (body) {
     if (this._delegate) {
+      this._delegate.responseType = this.responseType;
+      this._delegate.withCredentials = this.withCredentials;
       this._delegate.send(body);
       return;
     }
+
+    const credentialsMode = this.withCredentials
+      ? "include"
+      : (isSameOriginUrl(this._url) ? "same-origin" : "omit");
 
     performNativeRequest(this._url, {
       body: body,
       headers: this._headers,
       method: this._method
+    }, {
+      credentialsMode: credentialsMode
     }).then(function (response) {
       return response.text().then(function (responseText) {
+        this.readyState = NativeXMLHttpRequest.HEADERS_RECEIVED;
+        this._emit("readystatechange");
+        this.readyState = NativeXMLHttpRequest.LOADING;
+        this._emit("readystatechange");
         this.readyState = NativeXMLHttpRequest.DONE;
         this.status = response.status;
         this.statusText = response.statusText;

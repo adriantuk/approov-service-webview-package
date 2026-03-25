@@ -83,6 +83,7 @@ public final class ApproovWebViewService {
     private static final String NETWORK_LOG_TAG = "ApproovWebViewOkHttp";
     private static final String BRIDGE_OBJECT_NAME = "ApproovNativeBridge";
     private static final String BRIDGE_SCRIPT_ASSET = "approov-webview-bridge.js";
+    private static final String HEADER_ACCEPT = "accept";
     private static final String HEADER_CONTENT_TYPE = "content-type";
 
     private static volatile ApproovWebViewService instance;
@@ -343,9 +344,15 @@ public final class ApproovWebViewService {
         String requestBodyText = webRequest.has("body") && !webRequest.isNull("body")
             ? webRequest.getString("body")
             : null;
+        String credentialsMode = webRequest.optString("credentialsMode", "same-origin");
 
         URI requestUri = URI.create(url);
-        Request.Builder requestBuilder = new Request.Builder().url(url);
+        Request.Builder requestBuilder = new Request.Builder()
+            .url(url)
+            .tag(
+                BridgedRequestContext.class,
+                new BridgedRequestContext(requestUri, sourceOrigin, credentialsMode)
+            );
 
         applyHeaders(requestBuilder, requestHeaders);
         applyDefaultHeaders(requestBuilder, requestHeaders, requestUri, method, userAgent, sourceOrigin, pageUrl);
@@ -442,6 +449,11 @@ public final class ApproovWebViewService {
             return request;
         }
 
+        BridgedRequestContext requestContext = request.tag(BridgedRequestContext.class);
+        if (requestContext != null && !requestContext.shouldAttachCookies()) {
+            return request;
+        }
+
         String cookieHeader = callOnMainThread(() -> CookieManager.getInstance().getCookie(request.url().toString()));
         if (cookieHeader == null || cookieHeader.isBlank()) {
             return request;
@@ -533,6 +545,10 @@ public final class ApproovWebViewService {
         Uri sourceOrigin,
         String pageUrl
     ) {
+        if (!hasHeader(requestHeaders, "Accept")) {
+            requestBuilder.header("Accept", "*/*");
+        }
+
         if (!hasHeader(requestHeaders, "User-Agent") && userAgent != null && !userAgent.isBlank()) {
             requestBuilder.header("User-Agent", userAgent);
         }
@@ -613,7 +629,7 @@ public final class ApproovWebViewService {
     }
 
     private boolean shouldInterceptProtectedNavigation(WebView view, WebResourceRequest request) {
-        if (view == null || request == null || !request.isForMainFrame()) {
+        if (!config.interceptsMainFrameNavigations() || view == null || request == null || !request.isForMainFrame()) {
             return false;
         }
 
@@ -666,6 +682,7 @@ public final class ApproovWebViewService {
                 requestEnvelope.put("method", method);
                 requestEnvelope.put("headers", toJsonObject(requestHeaders));
                 requestEnvelope.put("pageUrl", pageUrl == null ? "" : pageUrl);
+                requestEnvelope.put("credentialsMode", "include");
 
                 JSONObject responsePayload = executeRequest(requestEnvelope, userAgent, sourceOrigin, true);
                 loadProtectedNavigationResponse(view, requestUrl, responsePayload);
@@ -806,6 +823,10 @@ public final class ApproovWebViewService {
         try {
             JSONObject bridgeConfig = new JSONObject();
             bridgeConfig.put("nativeRequestRules", buildNativeRequestRulesJson());
+            bridgeConfig.put(
+                "protectSameFrameHtmlFormSubmissions",
+                config.protectsSameFrameHtmlFormSubmissions()
+            );
             return "window.__approovWebViewConfig = " + bridgeConfig + ";\n" + readAssetText(BRIDGE_SCRIPT_ASSET);
         } catch (JSONException exception) {
             throw new IllegalStateException("Unable to serialize bridge configuration.", exception);
@@ -1032,6 +1053,42 @@ public final class ApproovWebViewService {
     @FunctionalInterface
     private interface MainThreadValueSupplier<T> {
         T get();
+    }
+
+    private static final class BridgedRequestContext {
+        private final URI requestUri;
+        private final Uri sourceOrigin;
+        private final String credentialsMode;
+
+        private BridgedRequestContext(URI requestUri, Uri sourceOrigin, String credentialsMode) {
+            this.requestUri = requestUri;
+            this.sourceOrigin = sourceOrigin;
+            this.credentialsMode = credentialsMode == null ? "same-origin" : credentialsMode;
+        }
+
+        private boolean shouldAttachCookies() {
+            if ("include".equalsIgnoreCase(credentialsMode)) {
+                return true;
+            }
+
+            if ("omit".equalsIgnoreCase(credentialsMode)) {
+                return false;
+            }
+
+            if (requestUri == null || requestUri.getScheme() == null || requestUri.getHost() == null) {
+                return false;
+            }
+
+            if (sourceOrigin == null || sourceOrigin.getScheme() == null || sourceOrigin.getHost() == null) {
+                return false;
+            }
+
+            int requestPort = requestUri.getPort();
+            int sourcePort = sourceOrigin.getPort();
+            return sourceOrigin.getScheme().equalsIgnoreCase(requestUri.getScheme())
+                && sourceOrigin.getHost().equalsIgnoreCase(requestUri.getHost())
+                && sourcePort == requestPort;
+        }
     }
 
     /**

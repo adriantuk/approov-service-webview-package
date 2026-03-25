@@ -36,5 +36,19 @@ public class ApproovWebViewConfigTest {
         assertEquals(ApproovWebViewLogLevel.HEADERS, config.getOkHttpLogLevel());
         assertTrue(config.getRedactedHeaderNames().contains("x-custom-secret"));
         assertTrue(config.getRedactedHeaderNames().contains("approov-token"));
+        assertFalse(config.interceptsMainFrameNavigations());
+        assertFalse(config.protectsSameFrameHtmlFormSubmissions());
+    }
+
+    @Test
+    public void riskyHtmlReplayFeaturesAreExplicitOptIns() {
+        ApproovWebViewConfig config = new ApproovWebViewConfig.Builder("approov-config")
+            .addAllowedOriginRule("https://app.example.com")
+            .setInterceptMainFrameNavigations(true)
+            .setProtectSameFrameHtmlFormSubmissions(true)
+            .build();
+
+        assertTrue(config.interceptsMainFrameNavigations());
+        assertTrue(config.protectsSameFrameHtmlFormSubmissions());
     }
 }

@@ -26,6 +26,8 @@ public final class ApproovWebViewConfig {
     private final String approovTokenHeaderName;
     private final boolean allowRequestsWithoutApproov;
     private final boolean serviceLoggingEnabled;
+    private final boolean interceptMainFrameNavigations;
+    private final boolean protectSameFrameHtmlFormSubmissions;
     private final ApproovWebViewLogLevel okHttpLogLevel;
     private final Set<String> redactedHeaderNames;
     private final Set<String> allowedOriginRules;
@@ -38,6 +40,8 @@ public final class ApproovWebViewConfig {
         approovTokenHeaderName = builder.approovTokenHeaderName;
         allowRequestsWithoutApproov = builder.allowRequestsWithoutApproov;
         serviceLoggingEnabled = builder.serviceLoggingEnabled;
+        interceptMainFrameNavigations = builder.interceptMainFrameNavigations;
+        protectSameFrameHtmlFormSubmissions = builder.protectSameFrameHtmlFormSubmissions;
         okHttpLogLevel = builder.okHttpLogLevel;
         redactedHeaderNames = Collections.unmodifiableSet(new LinkedHashSet<>(builder.redactedHeaderNames));
         allowedOriginRules = Collections.unmodifiableSet(new LinkedHashSet<>(builder.allowedOriginRules));
@@ -63,6 +67,14 @@ public final class ApproovWebViewConfig {
 
     public boolean isServiceLoggingEnabled() {
         return serviceLoggingEnabled;
+    }
+
+    public boolean interceptsMainFrameNavigations() {
+        return interceptMainFrameNavigations;
+    }
+
+    public boolean protectsSameFrameHtmlFormSubmissions() {
+        return protectSameFrameHtmlFormSubmissions;
     }
 
     public ApproovWebViewLogLevel getOkHttpLogLevel() {
@@ -91,6 +103,8 @@ public final class ApproovWebViewConfig {
         private String approovTokenHeaderName = "approov-token";
         private boolean allowRequestsWithoutApproov = true;
         private boolean serviceLoggingEnabled = false;
+        private boolean interceptMainFrameNavigations = false;
+        private boolean protectSameFrameHtmlFormSubmissions = false;
         private ApproovWebViewLogLevel okHttpLogLevel = ApproovWebViewLogLevel.NONE;
         private final Set<String> redactedHeaderNames = new LinkedHashSet<>();
         private final Set<String> allowedOriginRules = new LinkedHashSet<>();
@@ -138,6 +152,30 @@ public final class ApproovWebViewConfig {
          */
         public Builder setServiceLoggingEnabled(boolean serviceLoggingEnabled) {
             this.serviceLoggingEnabled = serviceLoggingEnabled;
+            return this;
+        }
+
+        /**
+         * Enables native replay for matching top-level WebView navigations.
+         *
+         * <p>Defaults to {@code false}. Native replay cannot perfectly preserve browser navigation
+         * semantics, so most integrations should protect only API traffic and leave HTML page
+         * navigation on the normal WebView stack.
+         */
+        public Builder setInterceptMainFrameNavigations(boolean interceptMainFrameNavigations) {
+            this.interceptMainFrameNavigations = interceptMainFrameNavigations;
+            return this;
+        }
+
+        /**
+         * Enables native replay for matching same-frame HTML form submissions.
+         *
+         * <p>Defaults to {@code false}. Browser form flows often depend on redirects, response
+         * headers, and document lifecycle behavior that cannot be reproduced exactly by the bridge.
+         * Enable only for tightly controlled HTML endpoints that you have validated end to end.
+         */
+        public Builder setProtectSameFrameHtmlFormSubmissions(boolean protectSameFrameHtmlFormSubmissions) {
+            this.protectSameFrameHtmlFormSubmissions = protectSameFrameHtmlFormSubmissions;
             return this;
         }
 

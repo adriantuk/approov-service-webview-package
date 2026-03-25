@@ -8,11 +8,12 @@ This repo is intended for source-based consumption from GitHub. Customers do not
 
 - `fetch(...)`
 - `XMLHttpRequest`
-- same-frame HTML form submission
 - native-only secret header injection
 - Approov token injection through `io.approov:service.okhttp`
 - cookie sync between `CookieManager` and native OkHttp
 - document-start bridge injection through `androidx.webkit`
+- optional same-frame HTML form protection for validated flows only
+- optional main-frame navigation replay for validated flows only
 
 ## Repo Layout
 
@@ -77,12 +78,19 @@ webView.setWebViewClient(service.buildWebViewClient(null));
 webView.loadUrl("https://your-web-app.example.com");
 ```
 
+With the default configuration, the package protects matching `fetch(...)` and `XMLHttpRequest`
+traffic only. HTML form replay and top-level navigation replay are available as explicit opt-ins
+because they cannot preserve browser behavior for arbitrary sites.
+
 ## Important Constraints
 
 - This is not a plain remote package URL. Consumers cannot use `implementation("https://github.com/...")`.
 - Consumers must include the repo source in their Gradle build.
 - Keep `addNativeRequestRule(...)` narrow. Only protect the API hosts and paths that actually need Approov.
-- `fetch`/XHR/form traffic can be protected. Arbitrary browser-managed subresources such as every `<script>` or `<img>` request are not transparently rewritten by this library.
+- `fetch` and XHR are the safe default transport hooks. Arbitrary browser-managed subresources such as every `<script>` or `<img>` request are not transparently rewritten by this library.
+- Do not let `addNativeRequestRule(...)` or `addSecretHeader(...)` match HTML page routes unless you have explicitly enabled and validated the relevant HTML replay option.
+- `setProtectSameFrameHtmlFormSubmissions(true)` is high risk. Use it only for tightly controlled form endpoints that have been validated end to end.
+- `setInterceptMainFrameNavigations(true)` is high risk. Use it only when you intentionally want matching top-level page loads to bypass the normal WebView network stack.
 
 ## Build
 
