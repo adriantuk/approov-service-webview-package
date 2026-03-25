@@ -3,6 +3,7 @@
 Standalone Android library repo for protecting `WebView` API traffic with Approov through the Approov OkHttp SDK.
 
 This repo is intended for source-based consumption from GitHub. You do need to add the repo to Gradle build as a source module.
+The module build is self-contained, so consumers do not need to copy this repo's version-catalog aliases into their app.
 
 ## What It Covers
 

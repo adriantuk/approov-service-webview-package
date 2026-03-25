@@ -1,4 +1,8 @@
 pluginManagement {
+    plugins {
+        id("com.android.library") version "8.13.2"
+    }
+
     repositories {
         google {
             content {

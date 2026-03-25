@@ -12,6 +12,7 @@ git submodule update --init --recursive
 ```
 
 Then wire it into your Android project.
+The library module is self-contained and does not require copying this repo's version-catalog aliases into the consumer app.
 
 ## `settings.gradle.kts`
 
