@@ -33,7 +33,7 @@ The supported flow is:
 2. include it in your Gradle settings as a project
 3. depend on it with `implementation(project(":approov-service-webview"))`
 
-Use the exact snippets in [docs/ADDING_FROM_GITHUB.md](/Users/adriantukendorf/Developer/WebView%20Quickstarts/approov-service-webview-android/docs/ADDING_FROM_GITHUB.md).
+Use the exact snippets in [docs/ADDING_FROM_GITHUB.md]
 
 ## Minimal Integration
 
