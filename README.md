@@ -2,7 +2,7 @@
 
 Standalone Android library repo for protecting `WebView` API traffic with Approov through the Approov OkHttp SDK.
 
-This repo is intended for source-based consumption from GitHub. Customers do not need a Maven publication, but they do need to add the repo to their Gradle build as a source module.
+This repo is intended for source-based consumption from GitHub. You do need to add the repo to Gradle build as a source module.
 
 ## What It Covers
 
@@ -89,8 +89,8 @@ because they cannot preserve browser behavior for arbitrary sites.
 - Keep `addNativeRequestRule(...)` narrow. Only protect the API hosts and paths that actually need Approov.
 - `fetch` and XHR are the safe default transport hooks. Arbitrary browser-managed subresources such as every `<script>` or `<img>` request are not transparently rewritten by this library.
 - Do not let `addNativeRequestRule(...)` or `addSecretHeader(...)` match HTML page routes unless you have explicitly enabled and validated the relevant HTML replay option.
-- `setProtectSameFrameHtmlFormSubmissions(true)` is high risk. Use it only for tightly controlled form endpoints that have been validated end to end.
-- `setInterceptMainFrameNavigations(true)` is high risk. Use it only when you intentionally want matching top-level page loads to bypass the normal WebView network stack.
+- `setProtectSameFrameHtmlFormSubmissions(true)` Use it only for tightly controlled form endpoints that have been validated end to end.
+- `setInterceptMainFrameNavigations(true)` Use it only when you intentionally want matching top-level page loads to bypass the normal WebView network stack.
 
 ## Build
 
