@@ -704,12 +704,9 @@
     const resolvedUrl = new URL(url, window.location.href).toString();
     this._method = (method || "GET").toUpperCase();
     this._url = resolvedUrl;
+    const shouldUseNativeBridge = shouldRouteToNative(resolvedUrl);
 
-    if (async === false) {
-      throw new Error("Synchronous XMLHttpRequest is not supported by the Approov bridge.");
-    }
-
-    if (!shouldRouteToNative(resolvedUrl)) {
+    if (!shouldUseNativeBridge || async === false) {
       this._delegate = new OriginalXMLHttpRequest();
       this._delegate.responseType = this.responseType;
       this._delegate.withCredentials = this.withCredentials;
@@ -720,6 +717,13 @@
           this._emit(eventName);
         }.bind(this));
       }, this);
+
+      if (shouldUseNativeBridge && async === false) {
+        console.warn(
+          "Approov bridge bypassed protection for synchronous XMLHttpRequest to preserve page compatibility:",
+          resolvedUrl
+        );
+      }
 
       this._delegate.open(method, url, async, user, password);
       return;
